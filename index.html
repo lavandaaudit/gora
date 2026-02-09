@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IBONIRIUM · ETERNAL MOUNTAINS · NOAA SYNC</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; cursor: crosshair; }
+        canvas { position: fixed; inset: 0; }
+        #info { position: fixed; bottom: 12px; left: 12px; color: #9affc2; font-size: 11px; line-height: 1.5; opacity: 0.9; text-shadow: 0 0 8px rgba(0, 0, 0, 0.8); pointer-events: none; z-index: 100; }
+        #panel { position: fixed; bottom: 12px; right: 12px; max-width: 420px; color: #c7ffd9; font-size: 11px; line-height: 1.5; background: linear-gradient(to left, rgba(0, 0, 0, 0.75), transparent); padding: 14px 18px; border-right: 2px solid #0ff; text-shadow: 0 0 6px rgba(0, 0, 0, 0.9); pointer-events: none; z-index: 100; }
+        #cycle { position: fixed; top: 12px; right: 12px; color: #ffd700; font-size: 13px; background: rgba(0, 0, 0, 0.6); padding: 10px 14px; border-radius: 4px; pointer-events: none; z-index: 100; }
+        b { color: #0ff; }
+    </style>
+</head>
+<body>
+    <canvas id="sky"></canvas>
+    <canvas id="stars"></canvas>
+    <canvas id="clouds"></canvas>
+    <canvas id="mountainsBack"></canvas>
+    <canvas id="mountainsMid"></canvas>
+    <canvas id="mountainsFront"></canvas>
+    <canvas id="trees"></canvas>
+    <canvas id="lightning"></canvas>
+    <canvas id="hud"></canvas>
+
+    <div id="info">
+        <b>IBONIRIUM · MOUNTAIN TIMELINE</b><br>
+        Status: <span id="syncStatus">Syncing...</span><br>
+        Day: <span id="dayNum">–</span> | Cycle: <span id="cycleNum">1</span><br><br>
+        <b>☀ NOAA LIVE DATA</b><br>
+        SSN: <span id="ssn">–</span> | Kp: <span id="kp">–</span> | Bz: <span id="bz">–</span><br>
+        Wind: <span id="wind">–</span> km/s | Proton: <span id="proton">–</span><br>
+        Flare: <span id="flare">None</span><br><br>
+        <b>⚡ MOUNTAIN STATUS</b><br>
+        Storm: <span id="stormUI">Calm</span> | Radiation: <span id="rad">Low</span><br>
+        Trees: <span id="treeCount">–</span> | Clouds: <span id="cloudCount">–</span>
+    </div>
+
+    <div id="panel">
+        <b>IBONIRIUM · MOUNTAIN SYNC MODULE</b><br>
+        Гірський ландшафт синхронізований з 01.01.2026<br><br>
+        <div id="eternalTimer">Завантаження...</div><br>
+        <b>NOAA РЕАКЦІЇ:</b><br>
+        - 🌌 <b>SSN:</b> Яскравість неба та інтенсивність зірок<br>
+        - 🌬️ <b>Wind:</b> Швидкість хмар та коливання дерев<br>
+        - 🧭 <b>Bz:</b> Колір неба (Blue→Purple→Red)<br>
+        - ☢️ <b>Radiation:</b> Деформація дерев та туман<br>
+        - ⚡ <b>Storm:</b> Блискавки та грозова активність<br>
+        - 💥 <b>Flares:</b> Спалахи світла на небі
+    </div>
+
+    <div id="cycle">🔄 CYCLE <span id="cycleDisplay">...</span></div>
+
+    <script>
+        const canvases = ['sky', 'stars', 'clouds', 'mountainsBack', 'mountainsMid', 'mountainsFront', 'trees', 'lightning', 'hud'];
+        const ctxs = {};
+        canvases.forEach(id => {
+            const c = document.getElementById(id);
+            ctxs[id] = c.getContext('2d');
+        });
+
+        function resize() {
+            canvases.forEach(id => {
+                const c = document.getElementById(id);
+                c.width = innerWidth;
+                c.height = innerHeight;
+            });
+        }
+        window.addEventListener('resize', resize); resize();
+
+        // === TIME ENGINE ===
+        const START_DATE = new Date('2026-01-01T00:00:00');
+        const MS_PER_CYCLE = 13 * 24 * 60 * 60 * 1000;
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+        let timeline = {
+            totalMs: 0,
+            cyclesCompleted: 0,
+            msInCurrentCycle: 0,
+            progress: 0,
+            dayInCycle: 0
+        };
+
+        function updateTimeline() {
+            const now = new Date();
+            timeline.totalMs = now - START_DATE;
+            timeline.cyclesCompleted = Math.floor(timeline.totalMs / MS_PER_CYCLE);
+            timeline.msInCurrentCycle = timeline.totalMs % MS_PER_CYCLE;
+            timeline.progress = timeline.msInCurrentCycle / MS_PER_CYCLE;
+            timeline.dayInCycle = Math.floor(timeline.msInCurrentCycle / MS_PER_DAY);
+
+            const daysTotal = Math.floor(timeline.totalMs / MS_PER_DAY);
+            const h = Math.floor((timeline.totalMs / 3600000) % 24);
+            const m = Math.floor((timeline.totalMs / 60000) % 60);
+            const s = Math.floor((timeline.totalMs / 1000) % 60);
+
+            document.getElementById('cycleNum').textContent = timeline.cyclesCompleted + 1;
+            document.getElementById('dayNum').textContent = timeline.dayInCycle;
+            document.getElementById('cycleDisplay').textContent = (timeline.cyclesCompleted + 1) + " | DAY " + timeline.dayInCycle;
+            document.getElementById('syncStatus').textContent = "Connected";
+            document.getElementById('eternalTimer').innerHTML = `<b>Час буття:</b> ${daysTotal}д ${h}г ${m}хв ${s}с`;
+        }
+
+        // === NOAA & ENVIRONMENT ===
+        let ssn = 0, kp = 0, bz = 0, solarWind = 400, protonFlux = 1, electronFlux = 100;
+        let stormLevel = 0, radiationLevel = 0;
+        let recentFlare = { class: 'None' };
+
+        async function updateSpaceWeather() {
+            try {
+                const [rSSN, rProton, rFlare, rKp, rWind, rElectron] = await Promise.all([
+                    fetch('https://services.swpc.noaa.gov/json/solar-cycle/predicted-solar-cycle.json').then(r => r.json()).catch(() => null),
+                    fetch('https://services.swpc.noaa.gov/json/goes/primary/integral-protons-plot-6-hour.json').then(r => r.json()).catch(() => null),
+                    fetch('https://services.swpc.noaa.gov/json/goes/primary/xray-flares-7-day.json').then(r => r.json()).catch(() => null),
+                    fetch('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json').then(r => r.json()).catch(() => null),
+                    fetch('https://services.swpc.noaa.gov/json/rtsw/rtsw_wind_1m.json').then(r => r.json()).catch(() => null),
+                    fetch('https://services.swpc.noaa.gov/json/goes/primary/integral-electrons-plot-6-hour.json').then(r => r.json()).catch(() => null)
+                ]);
+
+                if (rSSN) ssn = rSSN[rSSN.length - 1]?.predicted_ssn || 15;
+                if (rProton) protonFlux = parseFloat(rProton[rProton.length - 1]?.flux) || 1;
+                if (rKp) kp = parseFloat(rKp[rKp.length - 1]?.kp_index) || 0;
+                if (rWind?.length) {
+                    solarWind = parseFloat(rWind[rWind.length - 1].wind_speed) || 400;
+                    bz = parseFloat(rWind[rWind.length - 1].bz) || 0;
+                }
+                if (rElectron) electronFlux = parseFloat(rElectron[rElectron.length - 1]?.flux) || 100;
+                if (rFlare?.length) {
+                    const latest = rFlare[rFlare.length - 1];
+                    recentFlare = { class: latest.current_class || latest.max_class || 'None' };
+                }
+
+                let flareBoost = recentFlare.class.startsWith('X') ? 0.8 : recentFlare.class.startsWith('M') ? 0.3 : 0;
+                radiationLevel = Math.min(1, (Math.log10(protonFlux + 1) / 5) + flareBoost);
+                stormLevel = Math.min(1, (kp / 9) + (bz < 0 ? Math.abs(bz) / 20 : 0));
+
+                document.getElementById('ssn').textContent = ssn.toFixed(1);
+                document.getElementById('kp').textContent = kp.toFixed(1);
+                document.getElementById('bz').textContent = bz.toFixed(1);
+                document.getElementById('wind').textContent = solarWind.toFixed(0);
+                document.getElementById('proton').textContent = protonFlux.toFixed(2);
+                document.getElementById('flare').textContent = recentFlare.class;
+
+                document.getElementById('rad').textContent = radiationLevel < 0.3 ? 'Low' : radiationLevel < 0.7 ? 'Moderate' : 'High';
+                document.getElementById('stormUI').textContent = stormLevel < 0.3 ? 'Calm' : stormLevel < 0.7 ? 'Active' : 'Storm';
+            } catch (e) { console.warn("Weather Sync Failed"); }
+        }
+        setInterval(updateSpaceWeather, 600000); updateSpaceWeather();
+
+        // === SKY & STARS ===
+        const stars = Array.from({ length: 400 }, () => ({ 
+            x: Math.random(), 
+            y: Math.random() * 0.6, 
+            s: Math.random() * 1.5,
+            twinkle: Math.random() * 10
+        }));
+
+        function drawSky() {
+            const ctx = ctxs.sky;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            
+            // REACTION: Bz affects sky color (Blue → Purple → Red)
+            let skyHue = 210 + (bz < 0 ? Math.abs(bz) * 15 : 0) + stormLevel * 40;
+            let skyBrightness = 10 + (ssn / 10) + stormLevel * 15;
+            
+            const grad = ctx.createLinearGradient(0, 0, 0, innerHeight);
+            grad.addColorStop(0, `hsl(${skyHue}, 60%, ${skyBrightness}%)`);
+            grad.addColorStop(0.5, `hsl(${skyHue + 20}, 50%, ${skyBrightness - 5}%)`);
+            grad.addColorStop(1, `hsl(${skyHue + 40}, 40%, ${skyBrightness + 10}%)`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, innerWidth, innerHeight);
+        }
+
+        function drawStars() {
+            const ctx = ctxs.stars;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            
+            // REACTION: SSN controls star brightness and flicker speed
+            const flickerSpeed = 0.001 * (1 + ssn / 40);
+            
+            stars.forEach(s => {
+                ctx.globalAlpha = 0.2 + Math.sin(Date.now() * flickerSpeed + s.twinkle) * 0.5;
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(s.x * innerWidth, s.y * innerHeight, s.s, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // === CLOUDS ===
+        class Cloud3D {
+            constructor(id) {
+                this.id = id;
+                this.x = Math.random();
+                this.y = 0.1 + Math.random() * 0.3;
+                this.z = Math.random(); // 0=far, 1=near
+                this.width = 0.1 + Math.random() * 0.15;
+                this.seed = Math.random() * 1000;
+            }
+
+            update() {
+                // REACTION: Solar wind controls cloud speed
+                const baseSpeed = 0.00005;
+                const windBoost = (solarWind - 400) / 100000;
+                this.x += baseSpeed + windBoost;
+                if (this.x > 1.2) this.x = -0.2;
+            }
+
+            draw(ctx) {
+                const scale = 0.5 + this.z * 0.5; // Perspective
+                const opacity = 0.3 + this.z * 0.4;
+                
+                // REACTION: Radiation creates fog/haze
+                const fogEffect = radiationLevel * 0.3;
+                
+                const x = this.x * innerWidth;
+                const y = this.y * innerHeight;
+                const w = this.width * innerWidth * scale;
+                const h = w * 0.4;
+
+                ctx.globalAlpha = opacity + fogEffect;
+                ctx.fillStyle = `hsl(0, 0%, ${70 + radiationLevel * 20}%)`;
+                
+                // Draw cloud puffs
+                for (let i = 0; i < 5; i++) {
+                    const px = x + (i - 2) * (w / 6);
+                    const py = y + Math.sin(this.seed + i) * (h / 3);
+                    const r = (w / 5) * (1 + Math.sin(this.seed + i * 2) * 0.3);
+                    ctx.beginPath();
+                    ctx.arc(px, py, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        const clouds = Array.from({ length: 25 }, (_, i) => new Cloud3D(i));
+
+        function drawClouds() {
+            const ctx = ctxs.clouds;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            clouds.sort((a, b) => a.z - b.z); // Far to near
+            clouds.forEach(c => {
+                c.update();
+                c.draw(ctx);
+            });
+        }
+
+        // === MOUNTAINS ===
+        class Mountain {
+            constructor(layer, index) {
+                this.layer = layer;
+                this.index = index;
+                this.seed = index * 789.123;
+                this.baseX = Math.abs(Math.sin(this.seed)) * 0.8 + 0.1;
+                this.peaks = [];
+                this.generatePeaks();
+            }
+
+            generatePeaks() {
+                const numPeaks = 8 + Math.floor(Math.abs(Math.sin(this.seed * 1.1)) * 6);
+                for (let i = 0; i < numPeaks; i++) {
+                    const x = (i / numPeaks) + (Math.sin(this.seed + i) * 0.05);
+                    const h = 0.3 + Math.abs(Math.sin(this.seed + i * 2.3)) * 0.4;
+                    this.peaks.push({ x, h });
+                }
+            }
+
+            draw(ctx) {
+                const scale = this.layer === 'back' ? 0.5 : this.layer === 'mid' ? 0.75 : 1.0;
+                const opacity = this.layer === 'back' ? 0.4 : this.layer === 'mid' ? 0.7 : 1.0;
+                
+                // REACTION: Storm darkens mountains
+                let brightness = 25 - (stormLevel * 15);
+                let hue = 200 + (bz < 0 ? Math.abs(bz) * 10 : 0);
+                
+                ctx.fillStyle = `hsla(${hue}, 30%, ${brightness}%, ${opacity})`;
+                ctx.strokeStyle = `hsla(${hue}, 50%, ${brightness + 10}%, ${opacity * 0.8})`;
+                ctx.lineWidth = 2;
+
+                ctx.beginPath();
+                ctx.moveTo(0, innerHeight);
+
+                this.peaks.forEach((peak, i) => {
+                    const x = (this.baseX + peak.x * 0.3) * innerWidth;
+                    const y = innerHeight * (1 - peak.h * scale);
+                    
+                    if (i === 0) ctx.lineTo(x, y);
+                    else {
+                        const prevPeak = this.peaks[i - 1];
+                        const px = (this.baseX + prevPeak.x * 0.3) * innerWidth;
+                        const py = innerHeight * (1 - prevPeak.h * scale);
+                        const cx = (px + x) / 2;
+                        const cy = Math.min(py, y) - 20;
+                        ctx.quadraticCurveTo(cx, cy, x, y);
+                    }
+                });
+
+                ctx.lineTo(innerWidth, innerHeight);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        const mountains = [];
+        for (let i = 0; i < 12; i++) {
+            const layer = i < 4 ? 'back' : i < 8 ? 'mid' : 'front';
+            mountains.push(new Mountain(layer, i));
+        }
+
+        function drawMountains() {
+            ['mountainsBack', 'mountainsMid', 'mountainsFront'].forEach(id => {
+                ctxs[id].clearRect(0, 0, innerWidth, innerHeight);
+            });
+
+            mountains.forEach(m => {
+                if (m.layer === 'back') m.draw(ctxs.mountainsBack);
+                else if (m.layer === 'mid') m.draw(ctxs.mountainsMid);
+                else m.draw(ctxs.mountainsFront);
+            });
+        }
+
+        // === TREES (PINES) ===
+        class PineTree {
+            constructor(id) {
+                this.id = id;
+                this.x = Math.abs(Math.sin(id * 234.567)) * 0.9 + 0.05;
+                this.z = Math.random(); // Depth
+                this.seed = id * 456.789;
+                this.age = 0;
+            }
+
+            draw(ctx) {
+                const cycle = timeline.cyclesCompleted;
+                this.age = (timeline.progress * 5) + (cycle * 5);
+
+                const scale = 0.6 + this.z * 0.4;
+                const opacity = 0.5 + this.z * 0.5;
+                
+                let x = this.x * innerWidth;
+                let y = innerHeight * 0.85;
+                
+                // REACTION: Wind sway
+                const swaySpeed = 0.0005 + (solarWind / 1000000);
+                const swayAmount = (solarWind - 400) / 100;
+                const sway = Math.sin(Date.now() * swaySpeed + this.seed) * swayAmount;
+                
+                // REACTION: Radiation deformation
+                const deform = radiationLevel * Math.sin(this.seed) * 10;
+                
+                let trunkHeight = (60 + this.age * 8) * scale;
+                let hue = 120 - (radiationLevel * 40) + (stormLevel * 20);
+                
+                // Trunk
+                ctx.strokeStyle = `hsla(30, 40%, 20%, ${opacity})`;
+                ctx.lineWidth = 4 * scale;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + sway + deform, y - trunkHeight);
+                ctx.stroke();
+
+                // Pine branches (triangular layers)
+                const layers = Math.min(8, Math.floor(this.age / 0.8));
+                for (let i = 0; i < layers; i++) {
+                    const layerY = y - (trunkHeight * (i / layers)) - 10;
+                    const layerW = (30 - i * 2) * scale;
+                    
+                    ctx.fillStyle = `hsla(${hue}, 60%, ${30 - stormLevel * 10}%, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.moveTo(x + sway + deform - layerW, layerY);
+                    ctx.lineTo(x + sway + deform, layerY - 25 * scale);
+                    ctx.lineTo(x + sway + deform + layerW, layerY);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+        }
+
+        const trees = Array.from({ length: 60 }, (_, i) => new PineTree(i));
+
+        function drawTrees() {
+            const ctx = ctxs.trees;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+            trees.sort((a, b) => a.z - b.z);
+            trees.forEach(t => t.draw(ctx));
+        }
+
+        // === LIGHTNING ===
+        let lightningBolts = [];
+
+        class Lightning {
+            constructor() {
+                this.x = Math.random() * innerWidth;
+                this.y = 0;
+                this.segments = [];
+                this.life = 10;
+                this.generateBolt();
+            }
+
+            generateBolt() {
+                let x = this.x;
+                let y = this.y;
+                const targetY = innerHeight * 0.6;
+
+                while (y < targetY) {
+                    const nx = x + (Math.random() - 0.5) * 40;
+                    const ny = y + 20 + Math.random() * 30;
+                    this.segments.push({ x1: x, y1: y, x2: nx, y2: ny });
+                    x = nx;
+                    y = ny;
+                }
+            }
+
+            draw(ctx) {
+                this.life--;
+                ctx.strokeStyle = `rgba(255, 255, 255, ${this.life / 10})`;
+                ctx.lineWidth = 3;
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = 'cyan';
+
+                this.segments.forEach(seg => {
+                    ctx.beginPath();
+                    ctx.moveTo(seg.x1, seg.y1);
+                    ctx.lineTo(seg.x2, seg.y2);
+                    ctx.stroke();
+                });
+
+                ctx.shadowBlur = 0;
+            }
+        }
+
+        function drawLightning() {
+            const ctx = ctxs.lightning;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+            // REACTION: Storm triggers lightning
+            if (stormLevel > 0.5 && Math.random() < stormLevel * 0.02) {
+                lightningBolts.push(new Lightning());
+            }
+
+            lightningBolts = lightningBolts.filter(bolt => bolt.life > 0);
+            lightningBolts.forEach(bolt => bolt.draw(ctx));
+        }
+
+        // === HUD ===
+        function drawHUD() {
+            const ctx = ctxs.hud;
+            ctx.clearRect(0, 0, innerWidth, innerHeight);
+
+            // REACTION: Storm pulse
+            if (stormLevel > 0.3) {
+                const pulse = Math.sin(Date.now() * 0.005) * stormLevel * 0.1;
+                ctx.fillStyle = `rgba(0, 255, 255, ${pulse})`;
+                ctx.fillRect(0, 0, innerWidth, innerHeight);
+            }
+
+            // REACTION: Radiation noise
+            if (radiationLevel > 0.4) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${radiationLevel * 0.15})`;
+                for (let i = 0; i < 50; i++) {
+                    ctx.fillRect(Math.random() * innerWidth, Math.random() * innerHeight, 1, 1);
+                }
+            }
+        }
+
+        // === MAIN LOOP ===
+        function loop() {
+            updateTimeline();
+            drawSky();
+            drawStars();
+            drawClouds();
+            drawMountains();
+            drawTrees();
+            drawLightning();
+            drawHUD();
+            requestAnimationFrame(loop);
+        }
+
+        document.getElementById('treeCount').textContent = trees.length;
+        document.getElementById('cloudCount').textContent = clouds.length;
+        loop();
+    </script>
+</body>
+</html>
