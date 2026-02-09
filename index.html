@@ -1,19 +1,80 @@
 <!DOCTYPE html>
 <html lang="uk">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IBONIRIUM · ETERNAL MOUNTAINS · NOAA SYNC</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: monospace; cursor: crosshair; }
-        canvas { position: fixed; inset: 0; }
-        #info { position: fixed; bottom: 12px; left: 12px; color: #9affc2; font-size: 11px; line-height: 1.5; opacity: 0.9; text-shadow: 0 0 8px rgba(0, 0, 0, 0.8); pointer-events: none; z-index: 100; }
-        #panel { position: fixed; bottom: 12px; right: 12px; max-width: 420px; color: #c7ffd9; font-size: 11px; line-height: 1.5; background: linear-gradient(to left, rgba(0, 0, 0, 0.75), transparent); padding: 14px 18px; border-right: 2px solid #0ff; text-shadow: 0 0 6px rgba(0, 0, 0, 0.9); pointer-events: none; z-index: 100; }
-        #cycle { position: fixed; top: 12px; right: 12px; color: #ffd700; font-size: 13px; background: rgba(0, 0, 0, 0.6); padding: 10px 14px; border-radius: 4px; pointer-events: none; z-index: 100; }
-        b { color: #0ff; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: #000;
+            overflow: hidden;
+            font-family: monospace;
+            cursor: crosshair;
+        }
+
+        canvas {
+            position: fixed;
+            inset: 0;
+        }
+
+        #info {
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
+            color: #9affc2;
+            font-size: 11px;
+            line-height: 1.5;
+            opacity: 0.9;
+            text-shadow: 0 0 8px rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #panel {
+            position: fixed;
+            bottom: 12px;
+            right: 12px;
+            max-width: 420px;
+            color: #c7ffd9;
+            font-size: 11px;
+            line-height: 1.5;
+            background: linear-gradient(to left, rgba(0, 0, 0, 0.75), transparent);
+            padding: 14px 18px;
+            border-right: 2px solid #0ff;
+            text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #cycle {
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            color: #ffd700;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 10px 14px;
+            border-radius: 4px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        b {
+            color: #0ff;
+        }
     </style>
 </head>
+
 <body>
     <canvas id="sky"></canvas>
     <canvas id="stars"></canvas>
@@ -147,12 +208,12 @@
                 document.getElementById('stormUI').textContent = stormLevel < 0.3 ? 'Calm' : stormLevel < 0.7 ? 'Active' : 'Storm';
             } catch (e) { console.warn("Weather Sync Failed"); }
         }
-        setInterval(updateSpaceWeather, 600000); updateSpaceWeather();
+        setInterval(updateSpaceWeather, 60000); updateSpaceWeather();
 
         // === SKY & STARS ===
-        const stars = Array.from({ length: 400 }, () => ({ 
-            x: Math.random(), 
-            y: Math.random() * 0.6, 
+        const stars = Array.from({ length: 400 }, () => ({
+            x: Math.random(),
+            y: Math.random() * 0.6,
             s: Math.random() * 1.5,
             twinkle: Math.random() * 10
         }));
@@ -160,11 +221,11 @@
         function drawSky() {
             const ctx = ctxs.sky;
             ctx.clearRect(0, 0, innerWidth, innerHeight);
-            
+
             // REACTION: Bz affects sky color (Blue → Purple → Red)
             let skyHue = 210 + (bz < 0 ? Math.abs(bz) * 15 : 0) + stormLevel * 40;
             let skyBrightness = 10 + (ssn / 10) + stormLevel * 15;
-            
+
             const grad = ctx.createLinearGradient(0, 0, 0, innerHeight);
             grad.addColorStop(0, `hsl(${skyHue}, 60%, ${skyBrightness}%)`);
             grad.addColorStop(0.5, `hsl(${skyHue + 20}, 50%, ${skyBrightness - 5}%)`);
@@ -176,10 +237,10 @@
         function drawStars() {
             const ctx = ctxs.stars;
             ctx.clearRect(0, 0, innerWidth, innerHeight);
-            
+
             // REACTION: SSN controls star brightness and flicker speed
             const flickerSpeed = 0.001 * (1 + ssn / 40);
-            
+
             stars.forEach(s => {
                 ctx.globalAlpha = 0.2 + Math.sin(Date.now() * flickerSpeed + s.twinkle) * 0.5;
                 ctx.fillStyle = "white";
@@ -212,10 +273,10 @@
             draw(ctx) {
                 const scale = 0.5 + this.z * 0.5; // Perspective
                 const opacity = 0.3 + this.z * 0.4;
-                
+
                 // REACTION: Radiation creates fog/haze
                 const fogEffect = radiationLevel * 0.3;
-                
+
                 const x = this.x * innerWidth;
                 const y = this.y * innerHeight;
                 const w = this.width * innerWidth * scale;
@@ -223,7 +284,7 @@
 
                 ctx.globalAlpha = opacity + fogEffect;
                 ctx.fillStyle = `hsl(0, 0%, ${70 + radiationLevel * 20}%)`;
-                
+
                 // Draw cloud puffs
                 for (let i = 0; i < 5; i++) {
                     const px = x + (i - 2) * (w / 6);
@@ -272,11 +333,11 @@
             draw(ctx) {
                 const scale = this.layer === 'back' ? 0.5 : this.layer === 'mid' ? 0.75 : 1.0;
                 const opacity = this.layer === 'back' ? 0.4 : this.layer === 'mid' ? 0.7 : 1.0;
-                
+
                 // REACTION: Storm darkens mountains
                 let brightness = 25 - (stormLevel * 15);
                 let hue = 200 + (bz < 0 ? Math.abs(bz) * 10 : 0);
-                
+
                 ctx.fillStyle = `hsla(${hue}, 30%, ${brightness}%, ${opacity})`;
                 ctx.strokeStyle = `hsla(${hue}, 50%, ${brightness + 10}%, ${opacity * 0.8})`;
                 ctx.lineWidth = 2;
@@ -287,7 +348,7 @@
                 this.peaks.forEach((peak, i) => {
                     const x = (this.baseX + peak.x * 0.3) * innerWidth;
                     const y = innerHeight * (1 - peak.h * scale);
-                    
+
                     if (i === 0) ctx.lineTo(x, y);
                     else {
                         const prevPeak = this.peaks[i - 1];
@@ -340,21 +401,21 @@
 
                 const scale = 0.6 + this.z * 0.4;
                 const opacity = 0.5 + this.z * 0.5;
-                
+
                 let x = this.x * innerWidth;
                 let y = innerHeight * 0.85;
-                
+
                 // REACTION: Wind sway
                 const swaySpeed = 0.0005 + (solarWind / 1000000);
                 const swayAmount = (solarWind - 400) / 100;
                 const sway = Math.sin(Date.now() * swaySpeed + this.seed) * swayAmount;
-                
+
                 // REACTION: Radiation deformation
                 const deform = radiationLevel * Math.sin(this.seed) * 10;
-                
+
                 let trunkHeight = (60 + this.age * 8) * scale;
                 let hue = 120 - (radiationLevel * 40) + (stormLevel * 20);
-                
+
                 // Trunk
                 ctx.strokeStyle = `hsla(30, 40%, 20%, ${opacity})`;
                 ctx.lineWidth = 4 * scale;
@@ -368,7 +429,7 @@
                 for (let i = 0; i < layers; i++) {
                     const layerY = y - (trunkHeight * (i / layers)) - 10;
                     const layerW = (30 - i * 2) * scale;
-                    
+
                     ctx.fillStyle = `hsla(${hue}, 60%, ${30 - stormLevel * 10}%, ${opacity})`;
                     ctx.beginPath();
                     ctx.moveTo(x + sway + deform - layerW, layerY);
@@ -485,4 +546,5 @@
         loop();
     </script>
 </body>
+
 </html>
